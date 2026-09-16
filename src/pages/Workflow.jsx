@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 function Workflow() {
   const [step, setStep] = useState(1);
@@ -54,13 +54,50 @@ function Workflow() {
     },
   ];
 
-  const classificationImages = [
+  const defaultImages = [
     "https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=300&q=80",
     "https://images.unsplash.com/photo-1511497584788-876760111969?auto=format&fit=crop&w=300&q=80",
     "https://images.unsplash.com/photo-1473445361085-b9a07f55608b?auto=format&fit=crop&w=300&q=80",
     "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=300&q=80",
     "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=300&q=80",
   ];
+
+  const [classes, setClasses] = useState([
+    {
+      id: 1,
+      name: "Industrial",
+      images: defaultImages.map((url, index) => ({
+        id: `default-${index}`,
+        url,
+        name: `Industrial image ${index + 1}`,
+        isLocal: false,
+      })),
+    },
+  ]);
+
+  const [selectedModels, setSelectedModels] = useState([
+    "model.h5",
+    "quantized_model.tflite",
+  ]);
+
+  const [datasetFiles, setDatasetFiles] = useState([]);
+  const [classFiles, setClassFiles] = useState([]);
+  const [uploadMessage, setUploadMessage] = useState("");
+
+  const imageInputRefs = useRef({});
+  const datasetInputRef = useRef(null);
+  const zipInputRef = useRef(null);
+  const classFileInputRef = useRef(null);
+  const modelInputRef = useRef(null);
+
+  const [modelInputKey, setModelInputKey] = useState(0);
+
+  const classificationImages = classes[0]?.images || defaultImages.map((url, index) => ({
+    id: `fallback-${index}`,
+    url,
+    name: `Industrial image ${index + 1}`,
+    isLocal: false,
+  }));
 
   const goNext = () => {
     if (step < 5) {
@@ -90,6 +127,117 @@ function Workflow() {
     setExecutionCompleted(false);
   };
 
+  // ================= ASSETS & MODELS FUNCTIONS =================
+
+  const showMessage = (message) => {
+    setUploadMessage(message);
+
+    window.setTimeout(() => {
+      setUploadMessage("");
+    }, 3000);
+  };
+
+  const handleDatasetImages = (event) => {
+    const files = Array.from(event.target.files || []);
+
+    if (files.length === 0) return;
+
+    setDatasetFiles(files);
+    showMessage(`${files.length} image file(s) selected successfully.`);
+  };
+
+  const handleZipUpload = (event) => {
+    const files = Array.from(event.target.files || []);
+
+    if (files.length === 0) return;
+
+    setDatasetFiles(files);
+    showMessage(`ZIP file selected: ${files[0].name}`);
+  };
+
+  const handleClassImages = (classId, event) => {
+    const files = Array.from(event.target.files || []);
+
+    if (files.length === 0) return;
+
+    const newImages = files.map((file, index) => ({
+      id: `${classId}-${Date.now()}-${index}`,
+      url: URL.createObjectURL(file),
+      name: file.name,
+      isLocal: true,
+    }));
+
+    setClasses((previousClasses) =>
+      previousClasses.map((item) =>
+        item.id === classId
+          ? {
+              ...item,
+              images: [...item.images, ...newImages],
+            }
+          : item
+      )
+    );
+
+    showMessage(`${files.length} image(s) added to the class.`);
+    event.target.value = "";
+  };
+
+  const addNewClass = () => {
+    const newClassNumber = classes.length + 1;
+
+    setClasses((previousClasses) => [
+      ...previousClasses,
+      {
+        id: Date.now(),
+        name: `New Class ${newClassNumber}`,
+        images: [],
+      },
+    ]);
+
+    showMessage("New class added successfully.");
+  };
+
+  const updateClassName = (classId, newName) => {
+    setClasses((previousClasses) =>
+      previousClasses.map((item) =>
+        item.id === classId
+          ? { ...item, name: newName }
+          : item
+      )
+    );
+  };
+
+  const handleClassFileUpload = (event) => {
+    const files = Array.from(event.target.files || []);
+
+    if (files.length === 0) return;
+
+    setClassFiles(files);
+    showMessage(`${files.length} image class file(s) selected.`);
+  };
+
+  const handleModelSelection = (event) => {
+    const files = Array.from(event.target.files || []);
+
+    if (files.length === 0) return;
+
+    const fileNames = files.map((file) => file.name);
+
+    setSelectedModels((previousModels) => {
+      const combined = [...previousModels, ...fileNames];
+      return [...new Set(combined)];
+    });
+
+    setModelInputKey((previous) => previous + 1);
+    showMessage(`${files.length} model file(s) selected.`);
+  };
+
+  const removeModel = (modelName) => {
+    setSelectedModels((previousModels) =>
+      previousModels.filter((model) => model !== modelName)
+    );
+  };
+
   return (
     <div className="min-h-screen bg-white text-slate-800">
 
@@ -99,7 +247,6 @@ function Workflow() {
 
           <div className="flex items-center gap-3 sm:gap-4">
 
-            {/* LOGO */}
             <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-white shadow-sm sm:h-16 sm:w-16">
               <div className="text-center leading-none">
                 <div className="text-lg sm:text-xl">
@@ -158,7 +305,6 @@ function Workflow() {
                   className="flex flex-1 items-start"
                 >
 
-                  {/* STEP ITEM */}
                   <button
                     type="button"
                     onClick={() => {
@@ -169,7 +315,6 @@ function Workflow() {
                     className="flex min-w-[145px] flex-col items-center text-center"
                   >
 
-                    {/* ICON */}
                     <div
                       className={[
                         "flex h-12 w-12 items-center justify-center rounded-full border-2 text-lg transition",
@@ -183,7 +328,6 @@ function Workflow() {
                       {completed ? "✓" : item.icon}
                     </div>
 
-                    {/* TITLE */}
                     <div
                       className={[
                         "mt-3 text-sm font-semibold",
@@ -197,14 +341,12 @@ function Workflow() {
                       {item.title}
                     </div>
 
-                    {/* SUBTITLE */}
                     <div className="mt-1 max-w-[150px] text-xs text-slate-400">
                       {item.subtitle}
                     </div>
 
                   </button>
 
-                  {/* CONNECTING LINE */}
                   {index < steps.length - 1 && (
                     <div
                       className={[
@@ -311,6 +453,7 @@ function Workflow() {
             <div className="mb-6 flex justify-end">
               <button
                 type="button"
+                onClick={() => showMessage("New Test Run button clicked.")}
                 className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white"
               >
                 + New Test Run
@@ -395,6 +538,7 @@ function Workflow() {
                       <td className="px-6 py-5">
                         <button
                           type="button"
+                          onClick={() => showMessage("View Result is available after execution.")}
                           className="rounded-md bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-600"
                         >
                           View Result
@@ -514,6 +658,13 @@ function Workflow() {
 
             </div>
 
+            {/* SUCCESS / ACTION MESSAGE */}
+            {uploadMessage && (
+              <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+                ✓ {uploadMessage}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
 
               {/* DATASET CARD */}
@@ -527,21 +678,63 @@ function Workflow() {
 
                 <div className="space-y-5 px-6 py-6">
 
+                  {/* HIDDEN DATASET IMAGE INPUT */}
+                  <input
+                    ref={datasetInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleDatasetImages}
+                  />
+
+                  {/* HIDDEN ZIP INPUT */}
+                  <input
+                    ref={zipInputRef}
+                    type="file"
+                    accept=".zip,application/zip"
+                    className="hidden"
+                    onChange={handleZipUpload}
+                  />
+
                   <div className="flex flex-wrap gap-3">
+
                     <button
                       type="button"
-                      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+                      onClick={() => datasetInputRef.current?.click()}
+                      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
                     >
                       Upload Images
                     </button>
 
                     <button
                       type="button"
-                      className="rounded-md border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-600"
+                      onClick={() => zipInputRef.current?.click()}
+                      className="rounded-md border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-50"
                     >
                       Upload ZIP File
                     </button>
+
                   </div>
+
+                  {datasetFiles.length > 0 && (
+                    <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                      <p className="text-sm font-semibold text-blue-700">
+                        Selected Dataset Files
+                      </p>
+
+                      <div className="mt-2 space-y-1">
+                        {datasetFiles.map((file, index) => (
+                          <p
+                            key={`${file.name}-${index}`}
+                            className="truncate text-xs text-slate-600"
+                          >
+                            📄 {file.name}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label className="mb-2 block text-sm font-medium">
@@ -555,50 +748,138 @@ function Workflow() {
                     />
                   </div>
 
-                  <div>
-                    <label className="mb-2 block text-sm font-medium">
-                      Class
-                    </label>
-
-                    <input
-                      value="Industrial"
-                      readOnly
-                      className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm"
-                    />
-                  </div>
-
-                  <div className="rounded-lg border-2 border-dashed border-blue-200 bg-blue-50 p-6 text-center">
-
-                    <p className="font-semibold text-blue-700">
-                      Add Images
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-500">
-                      Minimum 5 images
-                    </p>
-
-                    <button
-                      type="button"
-                      className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+                  {/* CLASS SECTIONS */}
+                  {classes.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-lg border border-slate-200 p-4"
                     >
-                      Select Images
-                    </button>
 
-                  </div>
+                      <div className="mb-4">
+                        <label className="mb-2 block text-sm font-medium">
+                          Class
+                        </label>
 
+                        <input
+                          type="text"
+                          value={item.name}
+                          onChange={(event) =>
+                            updateClassName(item.id, event.target.value)
+                          }
+                          className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500"
+                        />
+                      </div>
+
+                      <div className="rounded-lg border-2 border-dashed border-blue-200 bg-blue-50 p-5 text-center">
+
+                        <p className="font-semibold text-blue-700">
+                          Add Images
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          Minimum 5 images
+                        </p>
+
+                        <input
+                          ref={(element) => {
+                            imageInputRefs.current[item.id] = element;
+                          }}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={(event) =>
+                            handleClassImages(item.id, event)
+                          }
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            imageInputRefs.current[item.id]?.click()
+                          }
+                          className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                        >
+                          Select Images
+                        </button>
+
+                      </div>
+
+                      {/* IMAGE PREVIEWS BELOW SELECT IMAGES */}
+                      {item.images.length > 0 && (
+                        <div className="mt-5">
+
+                          <p className="mb-3 text-sm font-semibold text-slate-700">
+                            Selected Images ({item.images.length})
+                          </p>
+
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+
+                            {item.images.map((image) => (
+                              <div
+                                key={image.id}
+                                className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+                              >
+                                <img
+                                  src={image.url}
+                                  alt={image.name}
+                                  className="h-full w-full object-cover"
+                                />
+
+                                <div className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-2 py-1 text-[10px] text-white opacity-0 transition group-hover:opacity-100">
+                                  {image.name}
+                                </div>
+                              </div>
+                            ))}
+
+                          </div>
+
+                        </div>
+                      )}
+
+                    </div>
+                  ))}
+
+                  {/* ADD NEW CLASS BELOW IMAGES */}
                   <button
                     type="button"
-                    className="text-sm font-semibold text-blue-600"
+                    onClick={addNewClass}
+                    className="text-sm font-semibold text-blue-600 transition hover:text-blue-800"
                   >
                     + Add New Class
                   </button>
 
+                  {/* IMAGE CLASS FILE UPLOAD */}
+                  <input
+                    ref={classFileInputRef}
+                    type="file"
+                    accept=".txt,.csv,.json,.zip"
+                    multiple
+                    className="hidden"
+                    onChange={handleClassFileUpload}
+                  />
+
                   <button
                     type="button"
-                    className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white"
+                    onClick={() => classFileInputRef.current?.click()}
+                    className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
                   >
                     Upload Image Classes
                   </button>
+
+                  {classFiles.length > 0 && (
+                    <div className="rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                      <p className="font-semibold text-slate-700">
+                        Class files selected:
+                      </p>
+
+                      {classFiles.map((file, index) => (
+                        <p key={`${file.name}-${index}`} className="mt-1">
+                          {file.name}
+                        </p>
+                      ))}
+                    </div>
+                  )}
 
                 </div>
 
@@ -619,24 +900,56 @@ function Workflow() {
                     AI Model Upload
                   </h5>
 
+                  <input
+                    key={modelInputKey}
+                    ref={modelInputRef}
+                    type="file"
+                    accept=".h5,.tflite,.onnx,.pt,.pth,.keras"
+                    multiple
+                    className="hidden"
+                    onChange={handleModelSelection}
+                  />
+
                   <button
                     type="button"
-                    className="w-full rounded-lg border-2 border-dashed border-slate-300 px-5 py-8 text-sm text-slate-500"
+                    onClick={() => modelInputRef.current?.click()}
+                    className="w-full rounded-lg border-2 border-dashed border-slate-300 px-5 py-8 text-sm text-slate-500 transition hover:border-purple-400 hover:bg-purple-50"
                   >
-                    Select Models
+                    📁 Select Models
+                    <span className="mt-2 block text-xs text-slate-400">
+                      Supported: .h5, .tflite, .onnx, .pt, .pth, .keras
+                    </span>
                   </button>
 
-                  <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
-                    ✓ model.h5 file uploaded
-                  </div>
+                  {selectedModels.map((model) => (
+                    <div
+                      key={model}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700"
+                    >
+                      <span className="truncate">
+                        ✓ {model} file selected
+                      </span>
 
-                  <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
-                    ✓ quantized_model.tflite file uploaded
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => removeModel(model)}
+                        className="shrink-0 text-xs font-semibold text-red-500 hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
 
                   <button
                     type="button"
-                    className="w-full rounded-lg bg-purple-600 py-3 text-sm font-semibold text-white"
+                    onClick={() => {
+                      if (selectedModels.length > 0) {
+                        showMessage("Selected model files are ready.");
+                      } else {
+                        modelInputRef.current?.click();
+                      }
+                    }}
+                    className="w-full rounded-lg bg-purple-600 py-3 text-sm font-semibold text-white transition hover:bg-purple-700"
                   >
                     Upload Model
                   </button>
@@ -684,7 +997,6 @@ function Workflow() {
               </p>
             </div>
 
-            {/* PROJECT INFORMATION BAR */}
             <div className="mb-6 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-500 p-5 text-white">
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -723,7 +1035,6 @@ function Workflow() {
 
             </div>
 
-            {/* CONFIGURATION CARD */}
             <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
 
               <div className="border-b border-slate-200 px-6 py-5">
@@ -793,7 +1104,6 @@ function Workflow() {
 
             </div>
 
-            {/* LOADING DATA CONFIG */}
             <div className="mt-6 rounded-xl border border-slate-200 bg-white shadow-sm">
 
               <button
@@ -848,7 +1158,6 @@ function Workflow() {
               </p>
             </div>
 
-            {/* TOP TWO CARDS */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
               {/* CONFIGURATION */}
@@ -943,13 +1252,13 @@ function Workflow() {
 
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
 
-                    {classificationImages.map((image, index) => (
+                    {classificationImages.slice(0, 5).map((image, index) => (
                       <div
-                        key={index}
+                        key={image.id || index}
                         className="aspect-square overflow-hidden rounded-md border border-slate-300 bg-slate-100"
                       >
                         <img
-                          src={image}
+                          src={image.url}
                           alt={`Classification sample ${index + 1}`}
                           className="h-full w-full object-cover"
                         />
@@ -964,7 +1273,6 @@ function Workflow() {
 
             </div>
 
-            {/* EXECUTION COMPLETED MESSAGE */}
             {executionCompleted && (
               <div className="mt-6 rounded-xl border border-green-300 bg-green-50 px-5 py-5">
 
@@ -985,6 +1293,7 @@ function Workflow() {
 
                     <button
                       type="button"
+                      onClick={() => showMessage("Results are available for review.")}
                       className="mt-4 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
                     >
                       View Result
@@ -996,7 +1305,6 @@ function Workflow() {
               </div>
             )}
 
-            {/* BOTTOM BUTTONS */}
             <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
               <button
